@@ -14,6 +14,7 @@ SOURCES += main.cpp\
 
 HEADERS  += mainwindow.h \
     paintwidget.h \
-    myudp.h
+    myudp.h \
+    client.h
 
 FORMS    += mainwindow.ui

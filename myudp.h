@@ -15,13 +15,17 @@ public:
     void sendPix(QByteArray bytes);
 
 public slots:
-    void run();
-
     void readMes();
+    void findClients();
+    void readPix();
+    void readInit();
+    void deleteClient();
 
 signals:
     void ready(QPixmap* pix);
     void send_done();
+    void addr_lock();
+    void newClient(unsigned char type, QHostAddress host, quint16 port);
 
 private:
     QUdpSocket* s;

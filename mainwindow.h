@@ -2,6 +2,11 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <paintwidget.h>
+#include <myudp.h>
+#include <QList>
+#include "client.h"
+
 
 namespace Ui {
 class MainWindow;
@@ -21,10 +26,16 @@ signals:
 public slots:
     void timer1();
     void stream();
-    void send_done();
+    void starRecieve();
+    void startStream();
+    bool newClient(unsigned char type, QHostAddress host, quint16 port);
 
 private:
-    bool flag;
+    QList <client> clients;
+    QThread* tread;
+    QTimer* timer;
+    paintWidget* w1;
+    MyUdp* sock;
     Ui::MainWindow *ui;
 };
 
