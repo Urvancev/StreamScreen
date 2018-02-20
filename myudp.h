@@ -12,7 +12,7 @@ class MyUdp : public QWidget
 public:
     MyUdp();
 
-    void sendPix(QByteArray bytes);
+    void sendPix(QByteArray bytes, QHostAddress &host, quint16 &port);
 
 public slots:
     void readMes();
@@ -20,12 +20,15 @@ public slots:
     void readPix();
     void readInit();
     void deleteClient();
+    void sendBegin(QHostAddress &host, quint16 &port);
+    void readBegin(QHostAddress &host, quint16 &port);
 
 signals:
     void ready(QPixmap* pix);
     void send_done();
     void addr_lock();
     void newClient(unsigned char type, QHostAddress host, quint16 port);
+    void BeginStream(QHostAddress &host, quint16 &port);
 
 private:
     QUdpSocket* s;

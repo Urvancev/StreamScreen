@@ -13,32 +13,47 @@
 #include <QFile>
 #include <QNetworkInterface>
 
+#include <QLabel>
+#include <QPushButton>
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 
-    ui->menuBar->addAction("|||");
+    ui->menuBar->addAction("Menu");
 
     sock = new MyUdp;
     tread = new QThread(this);
     sock->moveToThread(tread);
     tread->start();
 
+    timer = new QTimer(this);
+
     connect(sock, SIGNAL(newClient(unsigned char,QHostAddress,quint16)), this, SLOT(newClient(unsigned char,QHostAddress,quint16)));
+    ui->listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->listWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(listRightClick(QPoint)));
+    connect(sock, SIGNAL(BeginStream(QHostAddress&,quint16&)), this, SLOT(startStream(QHostAddress &, quint16 &)));
 
     sock->findClients();
-    stream();
-
-
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
-    tread->quit();
-    tread->~QThread();
+    tread->exit();
+    tread->wait();
+    delete tread;
+}
+
+void MainWindow::listRightClick(QPoint point) {
+    qDebug() << "click";
+}
+
+void MainWindow::ClientConnect(QHostAddress &host, quint16 &port) {
+    sock->sendBegin(host, port);
+    startRecieve();
 }
 
 bool MainWindow::newClient(unsigned char type, QHostAddress host, quint16 port) {
@@ -50,6 +65,8 @@ bool MainWindow::newClient(unsigned char type, QHostAddress host, quint16 port) 
         }
     }
 
+    if (type > 4) return false;
+
     client c;
     c.type = type;
     c.host = host;
@@ -58,42 +75,47 @@ bool MainWindow::newClient(unsigned char type, QHostAddress host, quint16 port) 
 
     clients.append(c);
 
-    ui->listWidget->addItem(new QListWidgetItem(c.info));
+    ClientTab* tab = new ClientTab;
+    tab->setText(c.info);
+    tab->type = type;
+    tab->host = host;
+    tab->port = port;
+    tab->info = "Client type: " + QString::number(type) + " Ip: " + s + " port = " + QString::number(port);
+    connect(tab, SIGNAL(clicked(QHostAddress&,quint16&)), this, SLOT(ClientConnect(QHostAddress&,quint16&)));
+    QListWidgetItem* listw = new QListWidgetItem;
+    listw->setSizeHint(tab->sizeHint());
+
+    ui->listWidget->addItem(listw);
+    ui->listWidget->setItemWidget(listw, tab);
+    return true;
 }
 
-void MainWindow::starRecieve() {
+void MainWindow::startRecieve() {
     w1 = new paintWidget();
-    ui->gridLayout->addWidget(w1);
-
-    timer = new QTimer(this);
-    sock = new MyUdp;
-    QThread* tread = new QThread(this);
-    sock->moveToThread(tread);
+    w1->show();
+    //ui->gridLayout->addWidget(w1);
 
     connect(timer,SIGNAL(timeout()),this,SLOT(timer1()));
-    connect(this,SIGNAL(repaint()),w1,SLOT(update()));
+    connect(this,SIGNAL(repaintScreen()),w1,SLOT(update()));
     connect(sock,SIGNAL(ready(QPixmap*)),w1,SLOT(read(QPixmap*)));
 
     timer->start(40);
 }
 
-void MainWindow::startStream() {
-    sock = new MyUdp;
-    QThread* tread = new QThread(this);
-    sock->moveToThread(tread);
-
+void MainWindow::startStream(QHostAddress &host, quint16 &port) {
+    this->port = port;
+    this->host = host;
     connect(timer,SIGNAL(timeout()),this,SLOT(stream()));
-
-    tread->start();
+    timer->start(40);
 }
 
 void MainWindow::stream() {
     static QScreen* screen = QApplication::primaryScreen();
 
     static WId wid= QApplication::desktop()->winId();
-    static QPixmap pix = screen->grabWindow(wid,1920);
+    static QPixmap pix = screen->grabWindow(wid);
 
-    pix = screen->grabWindow(wid,1920);
+    pix = screen->grabWindow(wid);
     //pix = pix.scaled(1280,720, Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
     static QByteArray bytes;
     static QBuffer buffer(&bytes);
@@ -103,12 +125,12 @@ void MainWindow::stream() {
     pix.save(&buffer,"JPG");
 
     qDebug() << "before " << bytes.length();
-    bytes = qCompress(bytes);
+    //bytes = qCompress(bytes);
     qDebug() << "after" << bytes.length();
 
-    sock->sendPix(bytes);
+    sock->sendPix(bytes, this->host, this->port);
 }
 
 void MainWindow::timer1() {
-    emit repaint();
+    emit repaintScreen();
 }

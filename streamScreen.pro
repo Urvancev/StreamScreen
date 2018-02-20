@@ -10,11 +10,16 @@ TEMPLATE = app
 SOURCES += main.cpp\
         mainwindow.cpp \
     paintwidget.cpp \
-    myudp.cpp
+    myudp.cpp \
+    clienttab.cpp
 
 HEADERS  += mainwindow.h \
     paintwidget.h \
     myudp.h \
-    client.h
+    client.h \
+    clienttab.h
 
-FORMS    += mainwindow.ui
+FORMS    += mainwindow.ui \
+    clienttab.ui
+
+LIBS += -lglu32 -lopengl32
