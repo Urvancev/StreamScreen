@@ -5,16 +5,16 @@
 #include <QFile>
 #include <QTime>
 
-struct Pix_header_t {
-    unsigned int size;
+struct message {
+    char start;
+    unsigned short size;
+    char data[1604];
 };
 
-struct initMessage {
-    unsigned char type;
-};
-
-struct deleteMessage {
-    char start; //D
+struct messageS {
+    char start;
+    unsigned short size;
+    char* data;
 };
 
 MyUdp::MyUdp() {
@@ -27,20 +27,19 @@ MyUdp::MyUdp() {
             }
         }
     }
+
     connect(s,SIGNAL(readyRead()),this,SLOT(readMes()));
 }
 
 void MyUdp::findClients() {
-    initMessage buffer;
-    char start = 'I';
-    buffer.type = 1;
+    message mes;
+    mes.start = 'I';
+    mes.size = 1;
+    mes.data[0] = 1;
     for (int i = 0; i < 4; i++) {
-        s->writeDatagram((char*)&start,sizeof(initMessage), QHostAddress("255.255.255.255"), 9696);
-        s->writeDatagram((char*)&buffer,sizeof(initMessage), QHostAddress("255.255.255.255"), 9696);
-        s->writeDatagram((char*)&start,sizeof(initMessage), QHostAddress("255.255.255.255"), 9697);
-        s->writeDatagram((char*)&buffer,sizeof(initMessage), QHostAddress("255.255.255.255"), 9697);
-        s->writeDatagram((char*)&start,sizeof(initMessage), QHostAddress("255.255.255.255"), 9698);
-        s->writeDatagram((char*)&buffer,sizeof(initMessage), QHostAddress("255.255.255.255"), 9698);
+        s->writeDatagram((char*)&mes, 5, QHostAddress("255.255.255.255"), 9696);
+        s->writeDatagram((char*)&mes, 5, QHostAddress("255.255.255.255"), 9697);
+        s->writeDatagram((char*)&mes, 5, QHostAddress("255.255.255.255"), 9698);
     }
 }
 
@@ -49,15 +48,31 @@ void MyUdp::sendBegin(QHostAddress &host, quint16 &port) {
     s->writeDatagram((char*)&start,sizeof(char),host, port);
 }
 
-void MyUdp::readBegin(QHostAddress &host, quint16 &port) {
-    emit BeginStream(host, port);
+void MyUdp::sendPixElement(unsigned short x, unsigned short y, QByteArray& bytes, QHostAddress &host, quint16 &port) {
+    static message mes;
+    mes.start = 'E';
+    mes.size = bytes.length();
+    if (mes.size <= 1600) {
+        int j = 0;
+        char* buf = (char*)&x;
+        mes.data[j++] = buf[0];
+        mes.data[j++] = buf[1];
+        buf = (char*)&y;
+        mes.data[j++] = buf[0];
+        mes.data[j++] = buf[1];
+        buf = bytes.data();
+        for (int i = 0; i < mes.size; i++) {
+            mes.data[j++] = buf[i];
+        }
+        s->writeDatagram((char*)&mes, 4 + mes.size, host, port);
+        s->waitForBytesWritten(1);
+    }
 }
-
+/*
 void MyUdp::sendPix(QByteArray bytes, QHostAddress &host, quint16 &port) {
-    Pix_header_t head;
     char start = 'S';
     head.size = bytes.length();
-    qDebug() << head.size;
+    qDebug() << "send size " << head.size;
     char* p_data = bytes.data();
 
     s->writeDatagram((char*)&start,sizeof(char), host, port);
@@ -74,14 +89,28 @@ void MyUdp::sendPix(QByteArray bytes, QHostAddress &host, quint16 &port) {
     }
     s->waitForBytesWritten(10);
     emit send_done();
+}*/
+
+void MyUdp::deleteClient() {
+    //s->writeDatagram((char*)&buffer,sizeof(initMessage), QHostAddress("255.255.255.255"), 9696);
 }
 
-void MyUdp::readPix() {
-    unsigned int size;
+void MyUdp::readPixElement(char* data, unsigned short size) {
+    static QPixmap pix;
+    unsigned short* x = (unsigned short*) &data[0];
+    unsigned short* y = (unsigned short*) &data[2];
+    unsigned char* data1 = (unsigned char*)(data + 4);
+    //qDebug() << "x = " << *x << "y = " << *y;
+
+    if (pix.loadFromData((const unsigned char*)data1, size,"JPG")) {
+        emit ready(*x, *y, &pix);
+    }
+}
+/*
+void MyUdp::readPix(char* data, unsigned short size) {
     s->readDatagram((char*) &size,sizeof(unsigned int));
     qDebug() << "debug size = " << size;
     if (size > 5332140) size = 0;
-    char data[size];
     unsigned int pos = 0;
     while (size > pos) {
         if (s->bytesAvailable()) pos += s->readDatagram((char*)&data[pos],(size - pos));
@@ -91,35 +120,39 @@ void MyUdp::readPix() {
         emit ready(&pix);
     }
 }
-
-void MyUdp::readInit() {
-    unsigned char type;
-    QHostAddress host;
-    quint16 port;
-    s->readDatagram((char*) &type, sizeof(char), &host, &port);
+*/
+void MyUdp::readInit(char* data, QHostAddress &host, quint16 &port) {
+    qDebug() << "readInit " << data[0];
     if (port != 0) {
-        emit newClient(type, host, port);
+        emit newClient(data[0], host, port);
     }
 }
 
-void MyUdp::deleteClient() {
-    //s->writeDatagram((char*)&buffer,sizeof(initMessage), QHostAddress("255.255.255.255"), 9696);
+void MyUdp::readBegin(QHostAddress &host, quint16 &port) {
+    emit BeginStream(host, port);
 }
 
 void MyUdp::readMes() {
     static QHostAddress host;
     static quint16 port;
     if (s->bytesAvailable()) {
-        char start;
-        s->readDatagram((char*) &start,sizeof(char), &host, &port);
-        if (start == 'S') {
-            readPix();
+        message mes;
+        message* p_mes = &mes;
+        qint64 mes_size = s->readDatagram((char*) p_mes,sizeof(message), &host, &port);
+        if (mes.start == 'S') {
+            //readPix(mes.data, mes.size);
         }
-        if (start == 'I') {
-            readInit();
+        if (mes.start == 'E') {
+            readPixElement((char*)&mes.data[0], mes.size);
         }
-        if (start == 'B') {
+        if (mes.start == 'I') {
+            readInit(mes.data, host, port);
+        }
+        if (mes.start == 'B') {
             readBegin(host, port);
+        }
+        if (mes.start == 'K') {
+
         }
     }
     if (s->bytesAvailable()) {

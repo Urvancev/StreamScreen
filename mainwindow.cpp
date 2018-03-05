@@ -37,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(sock, SIGNAL(BeginStream(QHostAddress&,quint16&)), this, SLOT(startStream(QHostAddress &, quint16 &)));
 
     sock->findClients();
+    //stream();
 }
 
 MainWindow::~MainWindow()
@@ -97,38 +98,69 @@ void MainWindow::startRecieve() {
 
     connect(timer,SIGNAL(timeout()),this,SLOT(timer1()));
     connect(this,SIGNAL(repaintScreen()),w1,SLOT(update()));
-    connect(sock,SIGNAL(ready(QPixmap*)),w1,SLOT(read(QPixmap*)));
+    connect(sock,SIGNAL(ready(unsigned short, unsigned short, QPixmap*)),w1,SLOT(read(unsigned short, unsigned short, QPixmap*)));
 
-    timer->start(40);
+    timer->start(1);
 }
 
 void MainWindow::startStream(QHostAddress &host, quint16 &port) {
     this->port = port;
     this->host = host;
     connect(timer,SIGNAL(timeout()),this,SLOT(stream()));
-    timer->start(40);
+    timer->start(20);
 }
 
 void MainWindow::stream() {
     static QScreen* screen = QApplication::primaryScreen();
-
     static WId wid= QApplication::desktop()->winId();
-    static QPixmap pix = screen->grabWindow(wid);
-
-    pix = screen->grabWindow(wid);
-    //pix = pix.scaled(1280,720, Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+    static QPixmap pix = screen->grabWindow(wid,1920);
     static QByteArray bytes;
     static QBuffer buffer(&bytes);
+    static QPixmap pix_old1;
+    static QPixmap pix_old2;
+    static QPixmap pix_old3;
+    static QPixmap pix_old4;
+    static unsigned char kadr = 0;
 
-    buffer.open(QIODevice::WriteOnly);
+    pix = screen->grabWindow(wid,1920);
+    pix = pix.scaled(1280, 720,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
 
-    pix.save(&buffer,"JPG");
+    //static unsigned short width = screen->size().width();
+    //static unsigned short height = screen->size().height();
+    static unsigned short width = 1280;
+    static unsigned short height = 720;
+    static unsigned char iMax = height/40;
+    static unsigned char jMax = width/40;
 
-    qDebug() << "before " << bytes.length();
+    static unsigned char block = 40;
+
+    for (int j = 0; j < jMax; j++) {
+        for (int i = 0; i < iMax; i++) {
+            QPixmap pixE = pix.copy(block * j, block * i, block, block);
+            QPixmap pixE_old1 = pix_old1.copy(block * j, block * i, block, block);
+            QPixmap pixE_old2 = pix_old2.copy(block * j, block * i, block, block);
+            QPixmap pixE_old3 = pix_old3.copy(block * j, block * i, block, block);
+            QPixmap pixE_old4 = pix_old4.copy(block * j, block * i, block, block);
+            if (pixE .toImage() != pixE_old1.toImage() || pixE .toImage() != pixE_old2.toImage() || pixE .toImage() != pixE_old3.toImage() || pixE .toImage() != pixE_old4.toImage() || kadr >= 10) {
+                buffer.open(QIODevice::WriteOnly);
+                pixE.save(&buffer,"JPG");
+
+                //bytes = qCompress(bytes);
+                sock->sendPixElement( block * j, block * i, bytes, this->host, this->port);
+            }
+        }
+    }
+    //kadr++;
+    if (kadr >= 10) kadr =0;
+    kadr++;
+    pix_old4 = pix_old3;
+    pix_old3 = pix_old2;
+    pix_old2 = pix_old1;
+    pix_old1 = pix;
+    //qDebug() << "before " << bytes.length();
     //bytes = qCompress(bytes);
-    qDebug() << "after" << bytes.length();
-
-    sock->sendPix(bytes, this->host, this->port);
+    //qDebug() << "after" << bytes.length();
+    //ui->label->setText(QString::number(bytes.length()));
 }
 
 void MainWindow::timer1() {

@@ -17,14 +17,17 @@ public:
 public slots:
     void readMes();
     void findClients();
-    void readPix();
-    void readInit();
+    //void readPix(char *data, unsigned short size);
+    void readInit(char* data, QHostAddress &host, quint16 &port);
     void deleteClient();
     void sendBegin(QHostAddress &host, quint16 &port);
     void readBegin(QHostAddress &host, quint16 &port);
+    void sendPixElement(unsigned short x, unsigned short y, QByteArray &bytes, QHostAddress &host, quint16 &port);
+    void readPixElement(char *data, unsigned short size);
+    //void sendKvit(QHostAddress &host, quint16 &port);
 
 signals:
-    void ready(QPixmap* pix);
+    void ready(unsigned short x, unsigned short y, QPixmap* pix);
     void send_done();
     void addr_lock();
     void newClient(unsigned char type, QHostAddress host, quint16 port);

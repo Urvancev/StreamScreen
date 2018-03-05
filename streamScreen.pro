@@ -22,4 +22,4 @@ HEADERS  += mainwindow.h \
 FORMS    += mainwindow.ui \
     clienttab.ui
 
-LIBS += -lglu32 -lopengl32
+#LIBS += -lglu32 -lopengl32

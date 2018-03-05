@@ -8,13 +8,13 @@ class paintWidget : public QOpenGLWidget
     Q_OBJECT
 public:
     explicit paintWidget(QOpenGLWidget *parent = 0);
-    QPixmap pix;
+    QPixmap* pix;
 
 signals:
 
 public slots:
     void paintEvent(QPaintEvent *);
-    void read(QPixmap* pix);
+    void read(unsigned short x, unsigned short y, QPixmap* pix);
 };
 
 #endif // PAINTWIDGET_H
